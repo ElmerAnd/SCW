@@ -1,0 +1,1 @@
+This html calculates the league table for a football team looking up data from a public site, on which results of the games are published. It contains a refresh button to update when new results have been published.
