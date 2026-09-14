@@ -216,7 +216,7 @@
       <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
       <span id="refreshLabel">Rangliste aktualisieren</span>
     </button>
-    <span class="status" id="statusLine">Noch nicht geladen — auf „Rangliste aktualisieren“ klicken (dies kann ein paar Sekunden dauern).</span>
+    <span class="status" id="statusLine">Noch nicht geladen — auf „Rangliste aktualisieren“ klicken (dies kann ziemlich lange dauern).</span>
   </div>
 
   <div id="fileWarning" style="display:none;" class="banner">
@@ -290,22 +290,30 @@ function setLoading(loading){
 
 async function fetchViaProxies(url){
   const attempts = [
+    { name: "corsproxy",  url: "https://corsproxy.io/?url=" + encodeURIComponent(url) },
     { name: "codetabs",   url: "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url) },
     { name: "allorigins", url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(url) },
-    { name: "corsproxy",  url: "https://corsproxy.io/?url=" + encodeURIComponent(url) },
     { name: "r.jina.ai",  url: "https://r.jina.ai/" + url }
   ];
   const failures = [];
   for (const attempt of attempts){
     try{
-      setStatus('Lade Resultate… (Versuch über ' + attempt.name + ')');
-      const res = await fetch(attempt.url, { cache: "no-store" });
+      setStatus('Lade Resultate… (dies kann ziemlich lange dauern)');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      let res;
+      try{
+        res = await fetch(attempt.url, { cache: "no-store", signal: controller.signal });
+      }finally{
+        clearTimeout(timeout);
+      }
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
       if (text && text.length > 200) return text;
       throw new Error("Antwort zu kurz (" + (text ? text.length : 0) + " Zeichen)");
     }catch(e){
-      failures.push(attempt.name + ": " + (e.message || e));
+      const msg = e.name === 'AbortError' ? 'Zeitlimit überschritten' : (e.message || e);
+      failures.push(attempt.name + ": " + msg);
     }
   }
   throw new Error("Alle Ladeversuche fehlgeschlagen — " + failures.join(" | "));
@@ -385,7 +393,8 @@ function renderTable(standings, matchCount){
   if (matchCount === 0){
     document.getElementById('tableHost').innerHTML =
       '<div class="empty">Es konnten keine gespielten Partien für diese Gruppe gefunden werden. ' +
-      'Entweder wurde noch kein Spiel ausgetragen, oder die Teamliste unten muss angepasst werden.</div>';
+      'Entweder wurde noch kein Spiel ausgetragen, oder die Teamliste unten muss angepasst werden. ' +
+      'Es kann auch am Lesedienst liegen — in dem Fall einfach nochmals auf „Rangliste aktualisieren“ klicken.</div>';
     return;
   }
   let rows = '';
@@ -449,7 +458,7 @@ function renderDebug(teams, matches){
 
 async function updateTable(){
   setLoading(true);
-  setStatus('Lade aktuelle Resultate vom FVRZ Matchcenter…');
+  setStatus('Lade aktuelle Resultate vom FVRZ Matchcenter… (dies kann ziemlich lange dauern)');
   try{
     const teams = getTeamList();
     const rawText = await fetchViaProxies(RESULT_URL);
