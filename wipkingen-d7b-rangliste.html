@@ -290,17 +290,18 @@ function setLoading(loading){
 
 async function fetchViaProxies(url){
   const attempts = [
-    { name: "corsproxy",  url: "https://corsproxy.io/?url=" + encodeURIComponent(url) },
-    { name: "codetabs",   url: "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url) },
-    { name: "allorigins", url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(url) },
-    { name: "r.jina.ai",  url: "https://r.jina.ai/" + url }
+    { name: "corsproxy",       url: "https://corsproxy.io/?url=" + encodeURIComponent(url) },
+    { name: "codetabs",        url: "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url) },
+    { name: "allorigins-raw",  url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(url) },
+    { name: "allorigins-json", url: "https://api.allorigins.win/get?url=" + encodeURIComponent(url), json: true },
+    { name: "r.jina.ai",       url: "https://r.jina.ai/" + url }
   ];
   const failures = [];
   for (const attempt of attempts){
     try{
       setStatus('Lade Resultate… (dies kann ziemlich lange dauern)');
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
       let res;
       try{
         res = await fetch(attempt.url, { cache: "no-store", signal: controller.signal });
@@ -308,7 +309,15 @@ async function fetchViaProxies(url){
         clearTimeout(timeout);
       }
       if (!res.ok) throw new Error("HTTP " + res.status);
-      const text = await res.text();
+      let text = await res.text();
+      if (attempt.json){
+        try{
+          const parsed = JSON.parse(text);
+          text = (parsed && parsed.contents) ? parsed.contents : "";
+        }catch(e){
+          throw new Error("Ungültiges JSON");
+        }
+      }
       if (!text || text.length < 200){
         throw new Error("Antwort zu kurz (" + (text ? text.length : 0) + " Zeichen)");
       }
