@@ -309,8 +309,16 @@ async function fetchViaProxies(url){
       }
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
-      if (text && text.length > 200) return text;
-      throw new Error("Antwort zu kurz (" + (text ? text.length : 0) + " Zeichen)");
+      if (!text || text.length < 200){
+        throw new Error("Antwort zu kurz (" + (text ? text.length : 0) + " Zeichen)");
+      }
+      // A genuine result page always contains "Spielnummer" next to played/scheduled matches.
+      // Some free proxy services return an HTTP 200 error/rate-limit page instead of the real
+      // content — this check catches that instead of silently reporting "no matches found".
+      if (!/Spielnummer/i.test(text)){
+        throw new Error("Antwort enthält keine erkennbaren Spieldaten (evtl. Fehler-/Limit-Seite des Lesedienstes)");
+      }
+      return text;
     }catch(e){
       const msg = e.name === 'AbortError' ? 'Zeitlimit überschritten' : (e.message || e);
       failures.push(attempt.name + ": " + msg);
